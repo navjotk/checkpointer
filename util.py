@@ -46,7 +46,8 @@ class Action(object):
     CPSAVE = 2
     CPLOAD = 3
     CPDEL = 4
-    _types = [FW, BW, CPSAVE, CPLOAD, CPDEL]
+    LASTFW = 5
+    _types = [FW, BW, CPSAVE, CPLOAD, CPDEL, LASTFW]
     _type_names = {FW: 'Forward', BW: 'Backward', CPSAVE:'Save Checkpoint', CPLOAD: 'Load Checkpoint', CPDEL: 'Delete Checkpoint'}
     def __init__(self, action_type, node):
         assert(action_type in self._types)
@@ -77,6 +78,9 @@ class Schedule(EmulatesInt):
     is_Feasible = True
     def __init__(self, actions = None):
         self.actions = actions or []
+
+    def __getitem__(self, item):
+        return self.actions[item]
 
     def add_action(self, node, kind):
         action = Action(kind, node)
@@ -183,6 +187,10 @@ class InfeasibleSchedule(Schedule):
     @property
     def cost(self):
         return LARGENUMBER
+
+    @property
+    def peakmemory(self):
+        return 0
 
     def __str__(self):
         return "(Infeasible Schedule)"

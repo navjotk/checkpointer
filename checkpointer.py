@@ -22,8 +22,13 @@ def constant_memory(chain):
     #print("Done")
     return s
 
+def schedule_nodes(nodes, memory):
+    for i, step in enumerate(nodes):
+        step['index'] = i
+    chain = Chain(nodes)
+    return schedule(chain, memory)
 
-def cost(chain, memory, toplevel = True):
+def schedule(chain, memory, toplevel = True):
     if chain.t_memcost() < memory:
         s = Schedule()
         first_node = {'index': chain.first['index'] - 1, 'output_size': chain.first['input_size']}
@@ -40,19 +45,23 @@ def cost(chain, memory, toplevel = True):
     if memory < chain.first['input_size']:
         return InfeasibleSchedule()
     schedules = []
-    schedules.append(constant_memory(chain))
+    min_schedule = constant_memory(chain)
+    if min_schedule.peakmemory > memory:
+        min_schedule = InfeasibleSchedule()
+    schedules.append(min_schedule)
     for i in range(1, chain.length()):
         left, right = chain.split(i)
-        leftschedule = cost(left, memory, False)
-        assert(leftschedule.peakmemory < memory)
-        rightschedule = cost(right, (memory - chain.memcost([i]) - chain.first['input_size']), False)
+        leftschedule = schedule(left, memory, False)
+        assert(leftschedule.peakmemory <= memory)
+        rightschedule = schedule(right, (memory - chain.memcost([i]) - chain.first['input_size']), False)
         if rightschedule.is_Feasible:
-            assert(rightschedule.peakmemory < (memory - chain.memcost([i]) - chain.first['input_size']))
+            assert(rightschedule.peakmemory <= (memory - chain.memcost([i]) - chain.first['input_size']))
         totalschedule = leftschedule.merge_with_checkpoint(rightschedule)
         if totalschedule.peakmemory > memory:
             totalschedule = InfeasibleSchedule()
         schedules.append(totalschedule)
-    assert(all([x.peakmemory < memory for x in schedules]))
+    #print([x.peakmemory for x in schedules], memory)
+    assert(all([x.peakmemory <= memory for x in schedules]))
     
     if toplevel:
         pass
@@ -89,28 +98,25 @@ class Chain(object):
     def __str__(self):
         return " ".join(["--%d-->(%d)--%d-->" % (node['input_size'], node['compute_cost'], node['output_size']) for node in self.nodes])
 
-parser= argparse.ArgumentParser(prog='dynamic.py', usage='python %(prog)s data.txt')
-parser.add_argument ('data', type=str, help="Data file")
-args = parser.parse_args()
 
-memory_budget = 6100
-with open(args.data) as f:
-    data = json.load(f)
+if __name__ == "__main__":
+    
+    parser= argparse.ArgumentParser(prog='dynamic.py', usage='python %(prog)s data.txt')
+    parser.add_argument ('data', type=str, help="Data file")
+    args = parser.parse_args()
 
-for i, step in enumerate(data):
-    step['index'] = i
+    memory_budget = 6100
+    with open(args.data) as f:
+        data = json.load(f)
+    print("Minimum computational cost: %d" % chain.t_comp_cost())
+    print("Memory required for minimum cost: %d" % chain.t_memcost())
+    print("Given memory budget: %d"%memory_budget)
 
-chain = Chain(data)
-
-print("Minimum computational cost: %d" % chain.t_comp_cost())
-print("Memory required for minimum cost: %d" % chain.t_memcost())
-print("Given memory budget: %d"%memory_budget)
-
-s = cost(chain, memory_budget)
-print("Suggested schedule:")
-print(s)
-print('Schedule cost: %d' % s.cost)
-print("Peak memory: %d" % s.peakmemory)
+    s = schedule_nodes(data, memory_budget)
+    print("Suggested schedule:")
+    print(s)
+    print('Schedule cost: %d' % s.cost)
+    print("Peak memory: %d" % s.peakmemory)
 
 
     
